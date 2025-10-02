@@ -25,12 +25,12 @@ class RGBButton:
             raise RuntimeError("Failed to initialize RGB Button!")
         self.rgb_button.set_RGB_color(self.e_black)  # Set initial color to black
     
-    '''    def set_RGB_color(self, int red, int green, int blue):
+    def set_RGB_color(self, red, green, blue):
         if isinstance(red, int) and isinstance(green, int) and isinstance(blue, int):
             self.rgb_button.set_RGB_color(red, green, blue)
         else:
             raise ValueError("RGB values must be integers in the range 0-255.")
-'''
+
     def get_status(self):
         return self.rgb_button.get_button_status()
     

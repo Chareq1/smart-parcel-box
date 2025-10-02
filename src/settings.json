@@ -1,0 +1,12 @@
+{
+    "name": "Parcel 2",
+    "description": "Smart Parcel Box",
+    "mqtt_broker": "192.168.1.215",
+    "data_publish_interval": 3,
+    "status_publish_interval": 5,
+    "minimal_temperature": 0,
+    "maximal_temperature": 50,
+    "minimal_humidity": 20,
+    "maximal_humidity": 80,
+    "ultrasonic_threshold": 10
+}

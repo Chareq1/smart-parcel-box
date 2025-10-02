@@ -8,7 +8,7 @@ import RPi.GPIO as GPIO
 '''
 
 # GPIO Pin Number 
-IR_BEAM_BREAK_SENSOR_PIN = 17
+IR_BEAM_BREAK_SENSOR_PIN = 13
 
 class IRBreakSensor:
     def __init__(self, count=0):

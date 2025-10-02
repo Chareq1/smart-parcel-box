@@ -8,7 +8,7 @@ import RPi.GPIO as GPIO
 '''
 
 # GPIO Pin Number 
-DOOR_SENSOR_PIN = 25
+DOOR_SENSOR_PIN = 12
 
 # GPIO.HIGH == Door Open
 # GPIO.LOW == Door Closed
