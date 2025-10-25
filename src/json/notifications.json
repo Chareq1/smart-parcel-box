@@ -1,0 +1,56 @@
+[
+    {
+        "key": "machineIsOnline",
+        "title": "%name% is online",
+        "body": "The %name% parcel box has became online and fully operational.",
+        "isRepeatable": false
+    },
+    {
+        "key": "noSpaceAvailable",
+        "title": "%name% is full",
+        "body": "There is no space available in the %name% parcel box.",
+        "isRepeatable": true
+    },
+    {
+        "key": "irBeamBroken",
+        "title": "New package delivered to %name%",
+        "body": "The new package has been delivered and placed in the %name% parcel box.",
+        "isRepeatable": false
+    },
+    {
+        "key": "minimalTemperatureAlert",
+        "title": "Low temperature in %name%",
+        "body": "The temperature in the %name% parcel box is too low.",
+        "isRepeatable": true
+    },
+    {
+        "key": "maximalTemperatureAlert",
+        "title": "High temperature in %name%",
+        "body": "The temperature in the %name% parcel box is too high.",
+        "isRepeatable": true
+    },
+    {
+        "key": "minimalHumidityAlert",
+        "title": "Low humidity in %name%",
+        "body": "The humidity in the %name% parcel box is too low.",
+        "isRepeatable": true
+    },
+    {
+        "key": "maximalHumidityAlert",
+        "title": "High humidity in %name%",
+        "body": "The humidity in the %name% parcel box is too high.",
+        "isRepeatable": true
+    },
+    {
+        "key": "courierWaiting",
+        "title": "Courier is waiting at %name%",
+        "body": "The courier is waiting at the %name% parcel box.",
+        "isRepeatable": false
+    },
+    {
+        "key": "mainDoorOpenedTooLong",
+        "title": "Main door are opened at %name%",
+        "body": "The main door are still opened at the %name% parcel box.",
+        "isRepeatable": true
+    }
+]

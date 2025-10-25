@@ -206,3 +206,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 secrets/
+
+# Settings and state
+src/json/saved_data.json
+src/json/settings.json
