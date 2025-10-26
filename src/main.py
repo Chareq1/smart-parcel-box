@@ -1,6 +1,4 @@
-import asyncio
 import datetime
-import threading
 import time
 import signal
 import sys
@@ -17,10 +15,11 @@ from components.step_motor_lock import StepMotorLock
 from services.mqtt_handler import MQTTHandler
 from services.notification_service import NotificationService
 from services.settings_manager import SettingsManager
+from services.bluetooth.bluetooth_service import BluetoothService
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from services.event_handler import EventHandler
-
+from services.bluetooth.ble_agent import BLEAgent
 from services.data_manager import DataManager
 
 
@@ -220,6 +219,16 @@ def check_initial_data():
             logger.info("Electromagnetic Lock Unlocked")
 
 
+def on_settings_update():
+    settings.save_settings()
+    mqtt_handler.publish('smart-parcel-box/settings', {
+        'minimal_temperature': settings.get("minimal_temperature", 0),
+        'maximal_temperature': settings.get("maximal_temperature", 50),
+        'minimal_humidity': settings.get("minimal_humidity", 20),
+        'maximal_humidity': settings.get("maximal_humidity", 80)
+    })
+
+
 def handle_shutdown(signum, frame):
     try:
         logger.info("System shutting down, saving state...")
@@ -235,6 +244,11 @@ def handle_shutdown(signum, frame):
         })
 
         mqtt_handler.publish("smart-parcel-box/status", {"online": False})
+
+        try:
+            bluetooth_service.stop()
+        except Exception:
+            pass
 
         scheduler.shutdown(wait=False)
         mqtt_handler.disconnect()
@@ -258,6 +272,14 @@ def main():
     scheduler.add_job(publish_status, 'interval', seconds=status_publish_interval, max_instances=1, coalesce=True, misfire_grace_time=10)
 
     scheduler.start()
+
+    BLEAgent.register(logger)
+
+    try:
+        bluetooth_service.start()
+        logger.info("Bluetooth service started")
+    except Exception as e:
+        logger.error(f"Failed to start Bluetooth service: {e}")
 
     try:
         while True:
@@ -325,6 +347,8 @@ subscribe_topics = ['smart-parcel-box/cmd/unlock-main-door', 'smart-parcel-box/c
 publish_topics = ['smart-parcel-box/data', 'smart-parcel-box/status', 'smart-parcel-box/settings']
 mqtt_handler = MQTTHandler(mqtt_broker, subscribe_topics, publish_topics, on_message, logger)
 mqtt_handler.connect()
+
+bluetooth_service = BluetoothService(settings_manager=settings, logger=logger, device_name="SmartParcelBox", on_settings_update=on_settings_update)
 
 
 # MAIN
