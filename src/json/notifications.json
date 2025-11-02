@@ -52,5 +52,11 @@
         "title": "Main door are opened at %name%",
         "body": "The main door are still opened at the %name% parcel box.",
         "isRepeatable": true
+    },
+    {
+      "key": "mainDoorOpenedByNFC",
+      "title": "Main door opened by NFC at %name%",
+      "body": "The main door of the %name% parcel box has been opened using NFC tag with uid %uid%.",
+      "isRepeatable": false
     }
 ]

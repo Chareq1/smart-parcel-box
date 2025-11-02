@@ -1,4 +1,7 @@
 import datetime
+import json
+import os
+import hashlib
 
 """
 src/services/event_handler.py
@@ -19,13 +22,17 @@ class EventHandler:
         name (str): Name identifier for the smart parcel box.
         rgb_button: RGB button component for visual indicators.
         door_sensor: Door sensor component to monitor door status.
+        nfc_reader: NFC reader component for reading NFC tags.
+        electromagnetic_lock: Electromagnetic lock component for locking/unlocking the main door.
+        autolock_main_door_seconds (int): Time in seconds to auto-lock the main door.
+        open_main_door_duration_seconds (int): Duration in seconds to keep the main door
         is_courier_waiting (bool): Flag indicating if a courier is waiting.
         is_space_available (bool): Flag indicating if space is available in the parcel box.
         logger: Logger instance for logging messages.
         scheduler: Scheduler for managing timed jobs.
     """
 
-    def __init__(self, notification_service, name, button, door_sensor, scheduler, logger, wait_time=30):
+    def __init__(self, notification_service, name, button, door_sensor, scheduler, logger, nfc_reader, electromagnetic_lock, autolock_main_door_seconds, open_main_door_duration_seconds, wait_time=30):
         """
         Initialize the EventHandler with necessary components and state.
         - Sets notification_service, name, rgb_button, door_sensor, logger, and scheduler based on given parameters.
@@ -37,6 +44,10 @@ class EventHandler:
             name (str): Name identifier for the smart parcel box.
             button: RGB button component for visual indicators.
             door_sensor: Door sensor component to monitor door status.
+            nfc_reader: NFC reader component for reading NFC tags.
+            electromagnetic_lock: Electromagnetic lock component for locking/unlocking the main door.
+            autolock_main_door_seconds (int): Time in seconds to auto-lock the main
+            open_main_door_duration_seconds (int): Duration in seconds to keep the main door
             scheduler: Scheduler for managing timed jobs.
             logger: Logger instance for logging messages.
             wait_time (int): Time in seconds to wait before resetting the courier button state.
@@ -45,10 +56,16 @@ class EventHandler:
         self.name = name
         self.rgb_button = button
         self.door_sensor = door_sensor
+        self.nfc_reader = nfc_reader
+        self.electromagnetic_lock = electromagnetic_lock
+        self.autolock_main_door_seconds = autolock_main_door_seconds
+        self.open_main_door_duration_seconds = open_main_door_duration_seconds
         self.is_courier_waiting = False
         self.is_space_available = True
         self.logger = logger
         self.scheduler = scheduler
+
+        self.scheduler.add_job(self.unlock_door_using_nfc_tag, 'interval', args=[self.nfc_reader, self.electromagnetic_lock, self.door_sensor, self.autolock_main_door_seconds, self.open_main_door_duration_seconds], seconds=1, coalesce=True, max_instances=10, misfire_grace_time=10)
         self.scheduler.add_job(self.check_courier_button, 'interval', args=[wait_time], seconds=1, id='check_courier_button', coalesce=True, misfire_grace_time=10)
 
 
@@ -340,3 +357,60 @@ class EventHandler:
 
         if not door_sensor.is_door_open() and self.scheduler.get_job("check_if_door_opened"):
             self.scheduler.remove_job("check_if_door_opened")
+
+
+    def unlock_door_using_nfc_tag(self, nfc_reader, electromagnetic_lock, door_sensor, autolock_main_door_seconds, open_main_door_duration_seconds):
+        uid = nfc_reader.read_uid_tag()
+        if uid:
+            uid_hex = ''.join("{:02X}".format(x) for x in uid)
+            try:
+                if not os.path.exists('src/secrets/rfid_tags.json'):
+                    if self.logger:
+                        self.logger.warning(f"File with RFID cards not found. Creating empty file for it.")
+                    with open('src/secrets/rfid_tags.json', 'w') as f:
+                        json.dump({}, f, indent=4)
+
+                with open('src/secrets/rfid_tags.json', 'r') as f:
+                    records = json.load(f)
+
+                nfc_dict = {r["uid_hex"]: r["code"] for r in records}
+
+                if uid_hex in nfc_dict:
+                    data = nfc_reader.read_data_from_tag(uid)
+                    if data:
+                        text = bytes(data).decode('utf-8').rstrip(' ')
+
+                        read_hash = hashlib.sha256(text.encode()).hexdigest()
+                        stored_hash = hashlib.sha256(nfc_dict[uid_hex].encode()).hexdigest()
+
+                        if read_hash == stored_hash and data:
+                            if electromagnetic_lock.is_locked() and not door_sensor.is_door_open():
+                                electromagnetic_lock.unlock()
+
+                                if self.is_courier_waiting:
+                                    self.reset_courier_button()
+                                    if self.scheduler.get_job("reset_courier_button"):
+                                        self.scheduler.remove_job("reset_courier_button")
+
+                                if not self.scheduler.get_job("autolock_main_door"):
+                                    self.scheduler.add_job(self.autolock_main_door, 'date', run_date=datetime.datetime.now() + datetime.timedelta(seconds=autolock_main_door_seconds), args=[electromagnetic_lock], id='autolock_main_door', coalesce=True, misfire_grace_time=10)
+
+                                if not self.scheduler.get_job("check_if_door_opened"):
+                                    self.scheduler.add_job(self.check_if_door_open, 'date',
+                                                      run_date=datetime.datetime.now() + datetime.timedelta(
+                                                          seconds=open_main_door_duration_seconds),
+                                                      args=[door_sensor, electromagnetic_lock], id='check_if_door_opened',
+                                                      coalesce=True, misfire_grace_time=10)
+
+                                self.notification_service.send_notification("mainDoorOpenedByNFC", self.name, uid_hex)
+                                self.logger.info(f"Electromagnetic Lock Unlocked using NFC card with uid {uid_hex}")
+                        else:
+                            self.logger.warning(f"Could not read data from card with uid {uid_hex}.")
+                    else:
+                        self.logger.warning(f"Card with uid {uid_hex} doesn't have correct data saved on it.")
+                else:
+                    self.logger.warning(f"Card with uid {uid_hex} not registered in system.")
+
+            except (json.JSONDecodeError, IOError) as e:
+                if self.logger:
+                    self.logger.error("Error while loading data from file")

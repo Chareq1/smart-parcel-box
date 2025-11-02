@@ -145,7 +145,7 @@ class DHTSensor:
         return True
 
 
-    def safe_read(self, retries=5, delay=2):
+    def safe_read(self, retries=5, delay=1):
         """
         Attempt to read from the DHT sensor with retries.
 

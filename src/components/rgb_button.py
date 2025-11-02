@@ -1,5 +1,4 @@
-from libraries.dfrobot_rgb_button import dfrobot_rgb_button
-import smbus
+from libraries.DFRobot_RGB_Button.dfrobot_rgb_button import dfrobot_rgb_button
 
 """
 src/components/rgb_button.py

@@ -66,7 +66,8 @@ class SettingsCharacteristic(Characteristic):
             'autolock_main_door_seconds': self.settings.get('autolock_main_door_seconds', 60),
             'open_main_door_duration_seconds': self.settings.get('open_main_door_duration_seconds', 60),
             'data_publish_interval': self.settings.get('data_publish_interval', 3),
-            'status_publish_interval': self.settings.get('status_publish_interval', 5)
+            'status_publish_interval': self.settings.get('status_publish_interval', 5),
+            'courier_button_wait_time_seconds': self.settings.get('courier_button_wait_time_seconds', 60)
         }
         data = json.dumps(payload).encode('utf-8')
         self.logger.info("BLE Read: returning settings JSON")
@@ -111,7 +112,8 @@ class SettingsCharacteristic(Characteristic):
                     'autolock_slide_parcel_door_seconds',
                     'autolock_main_door_seconds',
                     'open_main_door_duration_seconds',
-                    'data_publish_interval','status_publish_interval'
+                    'data_publish_interval','status_publish_interval',
+                    'courier_button_wait_time_seconds'
                 ]
                 if k not in allowed_keys:
                     self.logger.warning("Unknown BLE setting key: %s", k)
@@ -125,7 +127,7 @@ class SettingsCharacteristic(Characteristic):
                     'autolock_slide_parcel_door_seconds',
                     'autolock_main_door_seconds',
                     'open_main_door_duration_seconds',
-                    'data_publish_interval','status_publish_interval'
+                    'data_publish_interval','status_publish_interval', 'courier_button_wait_time_seconds'
                 ]:
                     try:
                         if '.' in str(v):
@@ -144,6 +146,13 @@ class SettingsCharacteristic(Characteristic):
                     continue
                 if k == 'maximal_temperature' and (casted < -40 or casted > 100):
                     self.logger.warning("maximal_temperature out of bounds: %s", casted)
+                    continue
+
+                if k == 'minimal_humidity' and (casted < 0 or casted > 100):
+                    self.logger.warning("minimal_humidity out of bounds: %s", casted)
+                    continue
+                if k == 'maximal_humidity' and (casted < 0 or casted > 100):
+                    self.logger.warning("maximal_humidity out of bounds: %s", casted)
                     continue
 
                 try:
