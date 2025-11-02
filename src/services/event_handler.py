@@ -65,7 +65,7 @@ class EventHandler:
         self.logger = logger
         self.scheduler = scheduler
 
-        self.scheduler.add_job(self.unlock_door_using_nfc_tag, 'interval', args=[self.nfc_reader, self.electromagnetic_lock, self.door_sensor, self.autolock_main_door_seconds, self.open_main_door_duration_seconds], seconds=1, coalesce=True, max_instances=10, misfire_grace_time=10)
+        self.scheduler.add_job(self.unlock_door_using_nfc_tag, 'interval', seconds=1, coalesce=True, max_instances=10, misfire_grace_time=10)
         self.scheduler.add_job(self.check_courier_button, 'interval', args=[wait_time], seconds=1, id='check_courier_button', coalesce=True, misfire_grace_time=10)
 
 
@@ -359,8 +359,18 @@ class EventHandler:
             self.scheduler.remove_job("check_if_door_opened")
 
 
-    def unlock_door_using_nfc_tag(self, nfc_reader, electromagnetic_lock, door_sensor, autolock_main_door_seconds, open_main_door_duration_seconds):
-        uid = nfc_reader.read_uid_tag()
+    def unlock_door_using_nfc_tag(self):
+        """
+        Unlock the main door using an NFC tag.
+        - Reads the UID from the NFC tag and checks if it is registered in the system.
+        - If registered, reads data from the tag and compares its hash with the stored hash.
+        - If hashes match and the door is locked and closed, unlocks the door, resets
+        courier button if needed, schedules auto-lock and door open checks, and sends
+        a notification about the door being opened by NFC.
+
+        Args:
+        """
+        uid = self.nfc_reader.read_uid_tag()
         if uid:
             uid_hex = ''.join("{:02X}".format(x) for x in uid)
             try:
@@ -376,7 +386,7 @@ class EventHandler:
                 nfc_dict = {r["uid_hex"]: r["code"] for r in records}
 
                 if uid_hex in nfc_dict:
-                    data = nfc_reader.read_data_from_tag(uid)
+                    data = self.nfc_reader.read_data_from_tag(uid)
                     if data:
                         text = bytes(data).decode('utf-8').rstrip(' ')
 
@@ -384,8 +394,8 @@ class EventHandler:
                         stored_hash = hashlib.sha256(nfc_dict[uid_hex].encode()).hexdigest()
 
                         if read_hash == stored_hash and data:
-                            if electromagnetic_lock.is_locked() and not door_sensor.is_door_open():
-                                electromagnetic_lock.unlock()
+                            if self.electromagnetic_lock.is_locked() and not self.door_sensor.is_door_open():
+                                self.electromagnetic_lock.unlock()
 
                                 if self.is_courier_waiting:
                                     self.reset_courier_button()
@@ -393,13 +403,13 @@ class EventHandler:
                                         self.scheduler.remove_job("reset_courier_button")
 
                                 if not self.scheduler.get_job("autolock_main_door"):
-                                    self.scheduler.add_job(self.autolock_main_door, 'date', run_date=datetime.datetime.now() + datetime.timedelta(seconds=autolock_main_door_seconds), args=[electromagnetic_lock], id='autolock_main_door', coalesce=True, misfire_grace_time=10)
+                                    self.scheduler.add_job(self.autolock_main_door, 'date', run_date=datetime.datetime.now() + datetime.timedelta(seconds=self.autolock_main_door_seconds), args=[self.electromagnetic_lock], id='autolock_main_door', coalesce=True, misfire_grace_time=10)
 
                                 if not self.scheduler.get_job("check_if_door_opened"):
                                     self.scheduler.add_job(self.check_if_door_open, 'date',
                                                       run_date=datetime.datetime.now() + datetime.timedelta(
-                                                          seconds=open_main_door_duration_seconds),
-                                                      args=[door_sensor, electromagnetic_lock], id='check_if_door_opened',
+                                                          seconds=self.open_main_door_duration_seconds),
+                                                      args=[self.door_sensor, self.electromagnetic_lock], id='check_if_door_opened',
                                                       coalesce=True, misfire_grace_time=10)
 
                                 self.notification_service.send_notification("mainDoorOpenedByNFC", self.name, uid_hex)
