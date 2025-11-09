@@ -54,9 +54,27 @@
         "isRepeatable": true
     },
     {
-      "key": "mainDoorOpenedByNFC",
-      "title": "Main door opened by NFC at %name%",
-      "body": "The main door of the %name% parcel box has been opened using NFC tag with uid %uid%.",
-      "isRepeatable": false
+        "key": "mainDoorOpened",
+        "title": "Main door opened at %name%",
+        "body": "The main door of the %name% parcel box has been opened.",
+        "isRepeatable": false
+    },
+    {
+        "key": "slideParcelDoorOpened",
+        "title": "Slide parcel door opened at %name%",
+        "body": "A slide parcel door of the %name% parcel box has been opened.",
+        "isRepeatable": false
+    },
+    {
+        "key": "mainDoorOpenedByNFC",
+        "title": "Main door opened by NFC at %name%",
+        "body": "The main door of the %name% parcel box has been opened using NFC tag with uid %uid%.",
+        "isRepeatable": false
+    },
+    {
+        "key": "newPackagesDelivered",
+        "title": "%amount% packages delivered to %name%",
+        "body": "%amount% new packages has been delivered and placed in the %name% parcel box.",
+        "isRepeatable": false
     }
 ]

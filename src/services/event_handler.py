@@ -412,7 +412,7 @@ class EventHandler:
                                                       args=[self.door_sensor, self.electromagnetic_lock], id='check_if_door_opened',
                                                       coalesce=True, misfire_grace_time=10)
 
-                                self.notification_service.send_notification("mainDoorOpenedByNFC", self.name, uid_hex)
+                                self.notification_service.send_notification("mainDoorOpenedByNFC", self.name, uid=uid_hex)
                                 self.logger.info(f"Electromagnetic Lock Unlocked using NFC card with uid {uid_hex}")
                         else:
                             self.logger.warning(f"Could not read data from card with uid {uid_hex}.")

@@ -76,7 +76,9 @@ def on_message(self, client, msg):
 
         if not scheduler.get_job("check_if_door_opened"):
             scheduler.add_job(event_handler.check_if_door_open, 'date', run_date=datetime.datetime.now() + datetime.timedelta(seconds=open_main_door_duration_seconds), args=[door_sensor, electromagnetic_lock], id='check_if_door_opened', coalesce=True, misfire_grace_time=10)
+
         logger.info("Electromagnetic Lock Unlocked")
+        notification_service.send_notification("mainDoorOpened", name)
 
     elif topic == 'smart-parcel-box/cmd/lock-main-door':
         electromagnetic_lock.lock()
@@ -102,6 +104,7 @@ def on_message(self, client, msg):
             scheduler.add_job(event_handler.autolock_slide_door, 'date', run_date=datetime.datetime.now() + datetime.timedelta(seconds=autolock_slide_parcel_door_seconds), args=[step_motor_lock], id='autolock_slide_parcel_door', coalesce=True, misfire_grace_time=10)
 
         logger.info("Slide parcel Door Unlocked")
+        notification_service.send_notification("slideParcelDoorOpened", name)
 
     elif topic == 'smart-parcel-box/cmd/add-parcels':
         try:
@@ -109,6 +112,7 @@ def on_message(self, client, msg):
             if count > 0:
                 ir_break_sensor.count += count
                 logger.info(f"Added {count} parcels. New count: {ir_break_sensor.count}")
+                notification_service.send_notification("newPackagesDelivered", name, amount=count)
             else:
                 logger.warning("Received non-positive parcel count to add.")
         except ValueError:

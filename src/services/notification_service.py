@@ -47,7 +47,7 @@ class NotificationService:
         self.scheduler = scheduler
 
 
-    def send_notification(self, key: str, name: str, uid: str = None):
+    def send_notification(self, key: str, name: str, uid: str = None, amount: int = None):
         """
         Send a notification based on the provided key and name.
         - If the notification is repeatable and not already active, schedule it to repeat after some time.
@@ -59,6 +59,7 @@ class NotificationService:
             key (str): The key identifying the notification template.
             name (str): The name to replace in the notification title and body.
             uid (str): Optional NFC tag UID to replace in the notification body.
+            amount (int): Optional amount of new packages to include in the notification body.
 
         Returns:
             None
@@ -71,6 +72,10 @@ class NotificationService:
 
                     if uid:
                         notification["body"] = notification["body"].replace("%uid%", uid)
+
+                    if amount:
+                        notification["title"] = notification["title"].replace("%amount%", str(amount))
+                        notification["body"] = notification["body"].replace("%amount%", str(amount))
 
 
                     self.firebase_service.send_notification(notification["title"], notification["body"])
