@@ -126,7 +126,7 @@ class EventHandler:
             bool: Current space availability status.
         """
         if distance > ultrasonic_threshold:
-            if not self.is_courier_waiting or not self.door_sensor.is_door_open():
+            if self.state_machine.get_state() != State.COURIER_WAITING or self.state_machine.get_state() != State.MAIN_DOOR_OPEN:
                 self.rgb_button.set_RGB_color(0, 255, 0)
 
             if self.notification_service.check_if_active_repeating("noSpaceAvailable"):
@@ -135,7 +135,7 @@ class EventHandler:
 
             self.is_space_available = True
         elif distance <= ultrasonic_threshold:
-            if not self.is_courier_waiting or not self.door_sensor.is_door_open():
+            if self.state_machine.get_state() != State.COURIER_WAITING or self.state_machine.get_state() != State.MAIN_DOOR_OPEN:
                 self.rgb_button.set_RGB_color(255, 0, 0)
 
             if not self.notification_service.check_if_active_repeating("noSpaceAvailable"):
@@ -296,7 +296,7 @@ class EventHandler:
         Returns:
             None
         """
-        if self.rgb_button.get_status() and not self.is_courier_waiting and self.is_space_available and not self.door_sensor.is_door_open():
+        if self.rgb_button.get_status() and self.state_machine.get_state() != State.COURIER_WAITING and self.state_machine.get_state() != State.NO_SPACE_AVAILABLE and self.state_machine.get_state() != State.MAIN_DOOR_OPEN:
             self.logger.info("Courier button pressed. Courier is waiting.")
             self.rgb_button.set_RGB_color(255, 255, 0)
             self.is_courier_waiting = True
@@ -378,7 +378,7 @@ class EventHandler:
         Returns:
             None
         """
-        if self.is_courier_waiting and not self.door_sensor.is_door_open():
+        if self.state_machine.get_state() == State.COURIER_WAITING and self.state_machine.get_state() != State.MAIN_DOOR_OPEN:
             self.logger.info("Resetting courier button state.")
             self.is_courier_waiting = False
             if self.is_space_available:
@@ -445,7 +445,7 @@ class EventHandler:
                             if self.electromagnetic_lock.is_locked() and not self.door_sensor.is_door_open():
                                 self.electromagnetic_lock.unlock()
 
-                                if self.is_courier_waiting:
+                                if self.state_machine.get_state() == State.COURIER_WAITING:
                                     self.reset_courier_button()
                                     if self.scheduler.get_job("reset_courier_button"):
                                         self.scheduler.remove_job("reset_courier_button")
