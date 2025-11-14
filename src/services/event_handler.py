@@ -3,6 +3,8 @@ import json
 import os
 import hashlib
 
+from services.state import State
+
 """
 src/services/event_handler.py
 
@@ -32,7 +34,7 @@ class EventHandler:
         scheduler: Scheduler for managing timed jobs.
     """
 
-    def __init__(self, notification_service, name, button, door_sensor, scheduler, logger, nfc_reader, electromagnetic_lock, autolock_main_door_seconds, open_main_door_duration_seconds, wait_time=30):
+    def __init__(self, notification_service, name, button, door_sensor, scheduler, logger, nfc_reader, electromagnetic_lock, autolock_main_door_seconds, open_main_door_duration_seconds, state_machine, wait_time=30):
         """
         Initialize the EventHandler with necessary components and state.
         - Sets notification_service, name, rgb_button, door_sensor, logger, and scheduler based on given parameters.
@@ -50,6 +52,7 @@ class EventHandler:
             open_main_door_duration_seconds (int): Duration in seconds to keep the main door
             scheduler: Scheduler for managing timed jobs.
             logger: Logger instance for logging messages.
+            state_machine: State machine for managing system states.
             wait_time (int): Time in seconds to wait before resetting the courier button state.
         """
         self.notification_service = notification_service
@@ -62,12 +65,49 @@ class EventHandler:
         self.open_main_door_duration_seconds = open_main_door_duration_seconds
         self.is_courier_waiting = False
         self.is_space_available = True
+        self.state_machine = state_machine
         self.logger = logger
         self.scheduler = scheduler
+
+        if self.state_machine:
+            try:
+                self.state_machine.set_state(State.IDLE)
+            except Exception:
+                pass
 
         self.scheduler.add_job(self.unlock_door_using_nfc_tag, 'interval', seconds=1, coalesce=True, max_instances=10, misfire_grace_time=10)
         self.scheduler.add_job(self.check_courier_button, 'interval', args=[wait_time], seconds=1, id='check_courier_button', coalesce=True, misfire_grace_time=10)
 
+    def _update_state(self, door_sensor=None):
+        """
+        Determine and set the new state based on current flags and door status.
+        Priority:
+          1. MAIN_DOOR_OPEN (if door open)
+          2. NO_SPACE_AVAILABLE (if no space)
+          3. COURIER_WAITING (if courier waiting)
+          4. IDLE otherwise
+        """
+        if not self.state_machine:
+            return
+
+        ds = door_sensor if door_sensor is not None else self.door_sensor
+        try:
+            if ds.is_door_open():
+                new_state = State.MAIN_DOOR_OPEN
+            elif not self.is_space_available:
+                new_state = State.NO_SPACE_AVAILABLE
+            elif self.is_courier_waiting:
+                new_state = State.COURIER_WAITING
+            else:
+                new_state = State.IDLE
+
+            if self.state_machine.get_state() != new_state:
+                self.state_machine.set_state(new_state)
+                if self.logger:
+                    self.logger.info(f"State changed to {new_state.name}")
+        except Exception:
+            if self.logger:
+                self.logger.debug("Unable to update state machine.")
 
     def check_space_availability(self, distance, ultrasonic_threshold):
         """
@@ -103,7 +143,8 @@ class EventHandler:
                 self.notification_service.send_notification("noSpaceAvailable", self.name)
 
             self.is_space_available = False
-            
+
+        self._update_state()
         return self.is_space_available
 
 
@@ -136,6 +177,8 @@ class EventHandler:
                 self.notification_service.send_notification("noSpaceAvailable", self.name)
 
             self.is_space_available = False
+
+        self._update_state()
 
         
 
@@ -259,7 +302,7 @@ class EventHandler:
             self.is_courier_waiting = True
             self.notification_service.send_notification("courierWaiting", self.name)
             self.scheduler.add_job(self.reset_courier_button, 'date', run_date=datetime.datetime.now() + datetime.timedelta(seconds=wait_time), id='reset_courier_button', coalesce=True, misfire_grace_time=10)
-
+            self._update_state()
 
     def autolock_slide_door(self, step_motor_lock):
         """
@@ -323,6 +366,8 @@ class EventHandler:
                 self.logger.info("Main door is closed but not locked. Locking the door.")
                 electromagnetic_lock.lock()
 
+        self._update_state(door_sensor=door_sensor)
+
 
     def reset_courier_button(self):
         """
@@ -340,6 +385,7 @@ class EventHandler:
                 self.rgb_button.set_RGB_color(0, 255, 0)
             else:
                 self.rgb_button.set_RGB_color(255, 0, 0)
+            self._update_state()
 
 
     def check_door_status(self, door_sensor):
@@ -357,6 +403,8 @@ class EventHandler:
 
         if not door_sensor.is_door_open() and self.scheduler.get_job("check_if_door_opened"):
             self.scheduler.remove_job("check_if_door_opened")
+
+        self._update_state(door_sensor=door_sensor)
 
 
     def unlock_door_using_nfc_tag(self):
@@ -414,6 +462,7 @@ class EventHandler:
 
                                 self.notification_service.send_notification("mainDoorOpenedByNFC", self.name, uid=uid_hex)
                                 self.logger.info(f"Electromagnetic Lock Unlocked using NFC card with uid {uid_hex}")
+                            self._update_state()
                         else:
                             self.logger.warning(f"Could not read data from card with uid {uid_hex}.")
                     else:

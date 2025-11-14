@@ -1,4 +1,5 @@
 import datetime
+import os
 import time
 import signal
 import sys
@@ -22,6 +23,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from services.event_handler import EventHandler
 from services.bluetooth.ble_agent import BLEAgent
 from services.data_manager import DataManager
+from services.state import State, StateMachine
 
 
 logging.basicConfig(
@@ -287,8 +289,9 @@ def on_settings_update(*args, **kwargs):
 
 
 def handle_shutdown(signum, frame):
+    logger.info("System shutting down, saving state...")
+
     try:
-        logger.info("System shutting down, saving state...")
         data_manager.save_data({
             'door_state': door_sensor.is_door_open(),
             'parcel_count': ir_break_sensor.count,
@@ -299,25 +302,44 @@ def handle_shutdown(signum, frame):
             'temperature': dht_sensor.temperature,
             'humidity': dht_sensor.humidity
         })
+    except Exception as e:
+        logger.error(f"Failed to save data during shutdown: {e}")
 
+    try:
         mqtt_handler.publish("smart-parcel-box/status", {
             "online": False,
             "name": name,
             "description": description
         })
-
-        try:
-            bluetooth_service.stop()
-        except Exception:
-            pass
-
-        scheduler.shutdown(wait=False)
-        mqtt_handler.disconnect()
-        rgb_button.set_RGB_color(0, 0, 0)
-        sys.exit(0)
     except Exception as e:
-        logger.error(f"Error during shutdown: {e}")
-        sys.exit(1)
+        logger.warning(f"Failed to publish offline status: {e}")
+
+    try:
+        bluetooth_service.stop()
+    except Exception:
+        pass
+
+    try:
+        scheduler.shutdown(wait=False)
+    except SchedulerNotRunningError:
+        logger.debug("Scheduler was not running, skipping shutdown.")
+    except Exception as e:
+        logger.warning(f"Error while shutting down scheduler: {e}")
+
+    try:
+        mqtt_handler.disconnect()
+    except Exception as e:
+        logger.warning(f"MQTT disconnect failed: {e}")
+
+    try:
+        rgb_button.set_RGB_color(0, 0, 0)
+    except Exception:
+        pass
+
+    try:
+        sys.exit(0)
+    except SystemExit:
+        os._exit(0)
 
 
 def main():
@@ -383,8 +405,11 @@ nfc_reader = NFCReader(logger=logger)
 data_manager = DataManager(logger=logger)
 data_manager.load_data()
 
+# STATE MACHINE
+state_machine = StateMachine()
+
 # EVENT HANDLER
-event_handler = EventHandler(notification_service, name, rgb_button, door_sensor, scheduler, logger, nfc_reader, electromagnetic_lock, autolock_main_door_seconds, open_main_door_duration_seconds, courier_button_wait_time_seconds)
+event_handler = EventHandler(notification_service, name, rgb_button, door_sensor, scheduler, logger, nfc_reader, electromagnetic_lock, autolock_main_door_seconds, open_main_door_duration_seconds, state_machine, courier_button_wait_time_seconds)
 
 # MQTT
 subscribe_topics = ['smart-parcel-box/cmd/unlock-main-door', 'smart-parcel-box/cmd/lock-main-door',
